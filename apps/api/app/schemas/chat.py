@@ -14,5 +14,5 @@ class Citation(BaseModel):
 class ChatResponse(BaseModel):
     conversation_id:str
     answer:str
-    citations:listp[Citation]=[]
+    citations:list[Citation]=Field(default_factory=list)
     finish_reason:Literal["stop","length","error"]="stop"

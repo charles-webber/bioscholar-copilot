@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Literal
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -6,9 +7,13 @@ class Settings(BaseSettings):
     app_name: str = "BioScholar API"
     environment: str = "development"
     web_origin: str = "http://localhost:3000"
-    llm_api_key: str = ""
-    llm_base_url: str = ""
-    llm_model: str = ""
+    agent_backend:Literal["demo","bioagent"]="demo"
+    biomedical_llm_api_style:Literal["chat_completions","responses"]=(
+        "chat_completions"
+    )
+    biomedical_llm_api_key: str = ""
+    biomedical_llm_base_url: str = ""
+    biomedical_llm_model: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",

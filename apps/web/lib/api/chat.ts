@@ -17,18 +17,26 @@ export type ChatResponse={
 
 const API_URL=process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
-export async function sendMessage(input:ChatRequest):Promise<ChatResponse>{
+export async function sendMessage(input:ChatRequest):Promise<ChatResponse>
+{
     const response=await fetch(
         `${API_URL}/api/chat`, 
         {
         method:"POST",
-        headers:{"Content-Type":"application"},
+        headers:{"Content-Type":"application/json"},
         body:JSON.stringify(input),
     }
     );
 
     if(!response.ok){
-        throw new Error(`请求失败：${response.status}`);
+        let message=`请求失败：${response.status}`;
+        try{
+            const body = (await response.json()) as {detail?:string};
+            if (body.detail) message=body.detail;
+        }catch{
+            // 响应不是 JSON 时保留包含状态码的默认错误。
+        }
+        throw new Error(message);
     }
     return response.json() as Promise<ChatResponse>;
 }
