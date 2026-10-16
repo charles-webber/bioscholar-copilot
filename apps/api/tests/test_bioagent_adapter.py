@@ -1,4 +1,3 @@
-import asyncio
 
 import pytest
 
@@ -8,11 +7,16 @@ from app.agent.runtime import AgentRuntimeError
 
 def test_adapter_extracts_summary() -> None:
     def runner(*, task: str) -> dict:
-        return {"ok": True, "summary": f"answer:{task}"}
+        return {
+            "ok": True,
+            "summary": f"answer:{task}",
+        }
 
-    answer = asyncio.run(BioAgentAdapter(runner).invoke("PCR 是什么？"))
+    answer = BioAgentAdapter(runner).invoke("PCR 是什么？")
 
-    assert answer == "answer:PCR 是什么？"
+    assert answer.text == "answer:PCR 是什么？"
+    assert answer.topic is None
+    assert answer.source_refs == ()
 
 
 def test_adapter_maps_structured_error() -> None:
@@ -28,9 +32,10 @@ def test_adapter_maps_structured_error() -> None:
         }
 
     with pytest.raises(AgentRuntimeError) as captured:
-        asyncio.run(BioAgentAdapter(runner).invoke("unknown"))
+        BioAgentAdapter(runner).invoke("unknown")
 
     assert captured.value.code == "BIOMEDICAL_TOPIC_NOT_FOUND"
+    assert captured.value.message == "没有识别出主题。"
     assert captured.value.retryable is False
 
 
@@ -39,6 +44,6 @@ def test_adapter_rejects_malformed_success() -> None:
         return {"ok": True}
 
     with pytest.raises(AgentRuntimeError) as captured:
-        asyncio.run(BioAgentAdapter(runner).invoke("PCR"))
+        BioAgentAdapter(runner).invoke("PCR")
 
     assert captured.value.code == "BIOMEDICAL_INVALID_RESULT"

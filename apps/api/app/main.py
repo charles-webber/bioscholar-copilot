@@ -1,28 +1,27 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.routes import chat
-from app.core.config import get_settings
 
+from app.core.config import get_settings
 from app.api.routes import chat,conversations
 
-app.include_router(chat.router,prefix="/api",tags=["chat"])
-app.include_router(conversations.router,prefix="/api",tags=["conversations"])
-
-
 settings= get_settings()
-app=FastAPI(title=settings.app_name)
+app=FastAPI(title=settings.app_name,version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[settings.web_origin],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type"]
+    allow_headers=["Content-Type", "X-Request-ID"]
 )
 
 app.include_router(chat.router,prefix="/api",tags=["chat"])
+app.include_router(conversations.router,prefix="/api",tags=["conversations"])
+
+
+
 
 @app.get("/health")
-async def health()->dict[str,str]:
+def health()->dict[str,str]:
     return {"status":"ok"}
 

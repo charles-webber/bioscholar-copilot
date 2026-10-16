@@ -1,14 +1,22 @@
-from collections.abc import AsyncGenerator
+#from collections.abc import AsyncGenerator
 from dataclasses import dataclass
-from typing import Any
+#from typing import Any
 from typing import Protocol
 
-
-@dataclass
+#区别
+@dataclass(frozen=True)
+class AgentAnswer:
+    text:str
+    topic:str|None=None
+    source_refs:tuple[str,...]=()
+    model:str|None=None
+    input_tokens:str|None=None
+    output_tokens:str|None=None
+'''
 class AgentEvent:
     type:str
     data:dict[str,Any]
-
+'''
 class AgentRuntimeError(RuntimeError):
     def __init__(
         self,
@@ -24,5 +32,5 @@ class AgentRuntimeError(RuntimeError):
         self.retryable=retryable
 
 class AgentRuntime(Protocol):
-    async def invoke(self,message:str)->str:...
-    async def stream(self,message:str)->AsyncInterator[AgentEvent]:...
+    #async def invoke(self,message:str)->str:...
+    def invoke(self,message:str)->AgentAnswer:...

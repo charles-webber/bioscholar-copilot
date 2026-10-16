@@ -6,7 +6,7 @@ from sqlalchemy import select
 from app.db.models.conversation import Conversation
 from app.db.models.message import Message
 from app.db.models.run import AgentRun
-from app.db.session import AsyncSessionLocal
+from app.db.session import SessionLocal
 
 class ConversationNotFoundError(Exception):
     pass
