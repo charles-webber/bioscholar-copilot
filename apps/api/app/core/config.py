@@ -21,6 +21,11 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    database_url:str=(
+        "postgresql+asyncpg://bioscholar:local_only_change_me"
+        "@localhost:5432/bioscholar"
+    )
+
 
 @lru_cache
 def get_settings() -> Settings:
