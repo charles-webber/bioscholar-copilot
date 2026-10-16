@@ -28,7 +28,7 @@ class BioAgentAdapter:
                     message="Biomedical Agent 成功结果中缺少 summary。"
                 )
             llm = result.get("llm") if isinstance(result.get("llm"),dict) else {}
-            usage = result.get("usage") if isinstance(llm.get("usage"),dict) else {}
+            usage = llm.get("usage") if isinstance(llm.get("usage"),dict) else {}
             return AgentAnswer(
                 text=summary,
                 topic=str(result.get("resolved_topic") or "") or None,

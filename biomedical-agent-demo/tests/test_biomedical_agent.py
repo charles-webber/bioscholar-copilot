@@ -4,9 +4,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-import agent_fourday
-import biomedical_agent
-import llm_client
+from app.agent.legacy_bioagent import agent_fourday
+from app.agent.legacy_bioagent import biomedical_agent
+from app.agent.legacy_bioagent import llm_client
 
 class BiomedicalAgentTests(unittest.TestCase):
     def setUp(self)->None:
