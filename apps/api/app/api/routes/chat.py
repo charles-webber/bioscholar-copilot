@@ -1,12 +1,14 @@
 #import json
-#import time
+import time
 #from collections.abc import AsyncIterator
 
+
+import logging
 from typing import Annotated
+from uuid import UUID
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import StreamingResponse
 
 from app.agent.runtime import AgentRuntime, AgentRuntimeError
 from app.api.dependencies import (
@@ -14,139 +16,113 @@ from app.api.dependencies import (
     get_chat_service,
     get_current_user_id,
 )
-
 from app.schemas.chat import ChatRequest, ChatResponse
 
+from app.services.chat_service import ChatService,ConversationNotFoundError
+
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
-#def encode_event(event:dict)->bytes:
-    #return (json.dumps(event,ensure_ascii=False))+"\n".encode("utf-8")
+def agent_http_error(exc:AgentRuntimeError)->HTTPException:
+    if exc.code in {"BIOMEDICAL_POLICY_BLOCKED","BIOMEDICAL_TOPIC_NOT_FOUND"}:
+        status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    elif exc.retryable:
+        status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    else:
+        status_code = status.HTTP_502_BAD_GATEWAY
+    return HTTPException(
+        status_code=status_code,
+        detail={
+            "code": exc.code,
+            "message": exc.message,
+            "next_action": exc.next_action,
+            "retryable": exc.retryable,            
+        }
+    )
+
+def unavailable_error()->HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_502_BAD_GATEWAY,
+        detail={
+            "code": "AGENT_UNAVAILABLE",
+            "message": "BioAgent 暂时不可用，请稍后重试。",
+            "next_action": "稍后重试。",
+            "retryable": True,
+        }
+    )
 
 
-@router.post("/chat",response_model=ChatResponse)
 
+
+
+@router.post("/chat", response_model=ChatResponse)
 def chat(
     payload: ChatRequest,
     runtime: Annotated[AgentRuntime, Depends(get_agent_runtime)],
 ) -> ChatResponse:
     try:
         answer = runtime.invoke(payload.message)
+
     except AgentRuntimeError as exc:
-        if exc.code in {"BIOMEDICAL_POLICY_BLOCKED", "BIOMEDICAL_TOPIC_NOT_FOUND"}:
-            status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
-        elif exc.retryable:
-            status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-        else:
-            status_code = status.HTTP_502_BAD_GATEWAY
-        raise HTTPException(
-            status_code=status_code,
-            detail={
-                "code": exc.code,
-                "message": exc.message,
-                "next_action": exc.next_action,
-                "retryable": exc.retryable,
-            },
-        ) from exc
+       raise agent_http_error(exc) from exc
     except Exception as exc:
-        raise HTTPException(
-            status_code=502,
-            detail={
-                "code": "AGENT_UNAVAILABLE",
-                "message": "BioAgent 暂时不可用，请稍后重试。",
-                "next_action": "稍后重试。",
-                "retryable": True,
-            },
-        ) from exc
+        raise unavailable_error() from exc
+    
 
     return ChatResponse(
-        conversation_id=payload.conversation_id or str(uuid4()),
+        conversation_id=payload.conversation_id or uuid4(),
         answer=answer.text,
         citations=[],
     )
 
 
-# async def stream_message(
-#     conversation_id:str,
-#     payload:ChatRequest,
-#     request:Request,
-#     agent_runtime:Annotated[AgentRuntime,Depends(get_agent_runtime)],
-# )->StreamingResponse:
-#     async def generate()->AsyncIterator[bytes]:
-#         run_id=str(uuid4())
-#         started=time.perf_counter()
-#         yield encode_event({"type": "run_started", "run_id": run_id})
-#         yield encode_event(
-#             {"type": "status", "label": "正在执行安全检查与本地知识检索"}
-#         )
-#         try:
-#             async for event in agent_runtime.stream(payload.message):
-#                 if await request.is_disconnected():
-#                     break
-#                 if event.type=="done":
-#                     latency_ms=int((time.perf_counter()-started)*1000)
-#                     yield encode_event(
-#                         {
-#                             "type":"done",
-#                             "run_id":run_id,
-#                             "latency_ms":latency_ms,
-#                         }
-#                     )
-#                 else:
-#                     yield encode_event({"type:event.type,**event.data"})
-#         except AgentRuntimeError as exc:
-#             message = exc.message
-#             if exc.next_action:
-#                 message+=f"下一步:{exc.next_action}"
-#             yield encode_event(
-#                 {"type": "error", "code": exc.code, "message": message}
-#             )
-#         except Exception:
-#             # 真实项目中同时记录 trace_id 和完整异常，不能把内部异常暴露给用户。
-#             yield encode_event({"type": "error", "message": "生成失败，请稍后重试"})
-
-#     return StreamingResponse(generate(),media_type="application/x-ndjson")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-async def chat(
+@router.post(
+    "/conversations/{conversation_id}/messages",
+    response_model=ChatResponse,
+)    
+def send_message(
+    conversation_id:UUID,
     payload:ChatRequest,
     runtime:Annotated[AgentRuntime,Depends(get_agent_runtime)],
+    services:Annotated[ChatService,Depends(get_chat_service)],
+    owner_id:Annotated[UUID,Depends(get_current_user_id)],
 )->ChatResponse:
     try:
-        answer = await runtime.invoke(payload.message)
+        run_id = services.start_run(conversation_id,owner_id,payload.message)
+    except ConversationNotFoundError as exc:
+        raise HTTPException(status_code=404,detail="会话不存在")from exc
+        
+    started = time.perf_counter()
+    
+    try :
+        answer = runtime.invoke(payload.message)
     except AgentRuntimeError as exc:
-        if exc.code in {
-            "BIOMEDICAL_POLICY_BLOCKED",
-            "BIOMEDICAL_TOPIC_NOT_FOUND",
-        }:
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY
-        elif exc.retryable or exc.code.startswith("LLM_"):
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE
-        else:
-            status_code=status.HTTP_502_BAD_GATEWAY
-
-        detail=exc.message
-        if exc.next_action:
-            detail+=f"下一步：{exc.next_action}"
-        raise HTTPException(status_code=status_code,detail=detail)
+        latency_ms = int((time.perf_counter()-started)*1000)
+        services.fail_run(run_id,exc.code,latency_ms)
+        raise agent_http_error(exc) from exc
     except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="BioAgent 暂时不可用，请稍后重试"
-        )from exc
+        latency_ms = int((time.perf_counter() - started) * 1000)
+        services.fail_run(run_id, "AGENT_UNAVAILABLE", latency_ms)
+        raise unavailable_error() from exc
 
+    latency_ms = int((time.perf_counter() - started) * 1000)
+    services.complete_run(run_id, conversation_id, answer, latency_ms)
     return ChatResponse(
-        conversation_id=payload.conversation_id or str(uuid4()),
-        answer=answer
+        conversation_id=conversation_id,
+        answer=answer.text,
+        citations=[],
     )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
