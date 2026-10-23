@@ -2,10 +2,21 @@
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
+type StructuredDetail = {
+    message?:string;
+    code?:string;
+    next_action?:string;
+};
+
+type ErrorBody = {
+    detail?:string|StructuredDetail;
+    message?:string;
+}
+
 export class ApiError extends Error {
-  public status: number;
-  public code?: string;
-  public nextAction?: string;
+  public readonly status: number;
+  public readonly code?: string;
+  public readonly nextAction?: string;
 
   constructor(
     message: string,
@@ -14,7 +25,7 @@ export class ApiError extends Error {
     nextAction?: string,
   ) {
     super(message);
-
+    this.name= "ApiError";
     this.status = status;
     this.code = code;
     this.nextAction = nextAction;
@@ -30,14 +41,24 @@ export async function apiFetch<T>(path:string,init:RequestInit={}):Promise<T>{
             ...init.headers,
         },
     });
+
     if (!response.ok){
-        const body = await response.json().catch(()=>null);
+        const body = await response.json().catch(()=>null) as ErrorBody|null;
         const detail = body?.detail;
+        const structured = 
+            detail !== null && typeof detail ==="object" ?detail:undefined;
+        const message = 
+            typeof detail ==="string"
+            ? detail 
+            :structured?.message ??
+            body?.message ??
+            `请求失败：${response.status}`;
+
         throw new ApiError(
-            detail?.message ?? `请求失败：${response.status}`,
+            message,
             response.status,
-            detail?.code,
-            detail?.nextAction,
+            structured?.code,
+            structured?.next_action,
         );
     }
     if(response.status===204) return undefined as T;

@@ -1,26 +1,17 @@
 
 import { apiFetch } from "../../lib/api/client";
-import type { ChatResponse } from "./types";
+import type { ChatResponse, Conversation, Message } from "./types";
 
-export type Conversation = {
-    id : string,
-    title : string,
-    created_at : string,
-    update_at : string  
-};
-
-export type Message = {
-    id: string;
-    role: "user" | "assistant";
-    content: string;
-    status: string;
-    created_at: string;
-
-};
+export const chatKeys = {
+    all:["chat"] as const,
+    conversations:()=>[...chatKeys.all,"conversations"] as const,
+    messages:(conversationId:string)=>
+        [...chatKeys.all, "messages", conversationId] as const,
+}
 
 export const chatApi = {
     listConversations:()=>apiFetch<Conversation[]>("/api/conversations"),
-    createConversation : (title:string)=>
+    createConversation : (title="新对话")=>
         apiFetch<Conversation>("/api/conversations",{
             method : "POST",
             body:JSON.stringify({title}),
@@ -31,5 +22,9 @@ export const chatApi = {
         apiFetch<ChatResponse>(`/api/conversations/${conversationId}/messages`, {
             method:"POST",
             body:JSON.stringify({message}),
-        }),    
+        }),
+    deleteConversation:(conversationId:string)=>
+        apiFetch<void>(`/api/conversations/${conversationId}`,{
+            method:"DELETE",
+        })    
 };

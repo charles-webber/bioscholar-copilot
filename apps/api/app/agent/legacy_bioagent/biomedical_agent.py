@@ -40,7 +40,7 @@ def safe_error(
 def run_biomedical_agent(
     task:str,
     max_chars:int=240,
-    max_output_tokens:int =256,
+    max_output_tokens:int =2048,
     max_output_chars:int = 1200,
     )->dict[str,Any]:
     """执行安全检查、主题解析、本地检索和模型回答。"""
@@ -93,7 +93,7 @@ def main()->None:
     parser.add_argument(
         "--max-output-tokens",
         type=int,
-        default=512,
+        default=2048,
         help="模型最大输出 token 数。",
         )
     parser.add_argument(

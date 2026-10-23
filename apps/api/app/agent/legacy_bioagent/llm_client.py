@@ -17,7 +17,7 @@ from openai import(
 
 ALLOWED_API_STYLES={"chat_completions","responses"}
 DEFAULT_TIMEOUT_SECONDS=20.0
-DEFAULT_MAX_OUTPUT_TOKENS=512
+DEFAULT_MAX_OUTPUT_TOKENS=2048
 
 def _error(
     code:str,
@@ -100,6 +100,24 @@ def _request_text(
             ],
             max_tokens=max_output_tokens,
         )
+
+
+#!
+        choice = response.choices[0]
+        usage = response.usage
+        details = getattr(usage, "completion_tokens_details", None)
+
+        print("LLM DEBUG:", {
+            "finish_reason": choice.finish_reason,
+            "content_length": len(choice.message.content or ""),
+            "completion_tokens": getattr(usage, "completion_tokens", None),
+            "reasoning_tokens": getattr(details, "reasoning_tokens", None),
+            "has_tool_calls": bool(choice.message.tool_calls),
+            "has_refusal": bool(getattr(choice.message, "refusal", None)),
+        }, flush=True)
+
+
+#!
         text=response.choices[0].message.content or ""
         usage=_usage_to_dict(response.usage)
         return text,usage
@@ -134,10 +152,10 @@ def generate_text(
         )
     if (
         not isinstance(max_output_tokens,int)
-        or not 1<=max_output_tokens<=1024
+        or not 1<=max_output_tokens<=2048
     ):return _error(
         code="LLM_INVALID_INPUT",
-        message="max_output_tokens必须是1到1024的整数",
+        message="max_output_tokens必须是1到2048的整数",
         retryable=False,
     )
 

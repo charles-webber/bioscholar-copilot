@@ -308,7 +308,7 @@ def run_agent(
     user_task:str|None=None,
     max_step:int=5,
     max_chars:int=240,
-    max_output_tokens:int=512,
+    max_output_tokens:int=2048,
     max_output_chars:int=1200,
     )->dict[str,Any]:
     """检索本地证据，调用模型，检查输出并写入总结。"""
