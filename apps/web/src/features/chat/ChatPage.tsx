@@ -7,6 +7,7 @@ import { Composer } from "./Composer";
 import { ConversationList } from "./ConversationList";
 import { MessageList } from "./MessageList";
 import { Variable } from "lucide-react";
+import { useChatStream } from "./useChatStream";
 
 function readableError(error:unknown,fallback:string):string{
   if (error instanceof ApiError){
@@ -23,6 +24,7 @@ export function ChatPage(){
   const queryClient = useQueryClient();
   const [selectedId,setSelectedId] = useState<string|null>(null);
   const [actionError,setActionError]=useState<string|null>(null);
+  const stream = useChatStream();
 
 
   const conversations = useQuery({
@@ -51,19 +53,21 @@ export function ChatPage(){
     }
   })
 
-  const sendMutation=useMutation({
-    mutationFn:({id,text}:{id:string,text:string})=>chatApi.sendMessage(id,text),
-    onSettled:async (_data,_error,variables)=>{
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey:chatKeys.messages(variables.id),
-        }),  
-        queryClient.invalidateQueries({
-          queryKey:chatKeys.conversations(),
-        }),
-      ]);
-    },
-  });
+
+  
+  // const sendMutation=useMutation({
+  //   mutationFn:({id,text}:{id:string,text:string})=>chatApi.sendMessage(id,text),
+  //   onSettled:async (_data,_error,variables)=>{
+  //     await Promise.all([
+  //       queryClient.invalidateQueries({
+  //         queryKey:chatKeys.messages(variables.id),
+  //       }),  
+  //       queryClient.invalidateQueries({
+  //         queryKey:chatKeys.conversations(),
+  //       }),
+  //     ]);
+  //   },
+  // });
 
   const deleteMutation = useMutation({
     mutationFn:chatApi.deleteConversation,
@@ -89,19 +93,17 @@ async function createConversation(){
       setActionError(readableError(error,"创建会话失败"));
     }
   }
+
+
   async function sendMessage(text: string) {
-    if (selectedId === null || sendMutation.isPending) return;
+    if (selectedId === null || stream.isStreaming) return;
     setActionError(null);
-    try {
-      await sendMutation.mutateAsync({ id: selectedId, text });
-    } catch (error) {
-      setActionError(readableError(error, "发送失败"));
-      throw error;
+    stream.clearError();
+    await stream.send(selectedId,text);
     }
-  }
 
   async function deleteConversation(id: string) {
-    if (deleteMutation.isPending) return;
+    if (deleteMutation.isPending||id===stream.activeConversationId) return;
     setActionError(null);
     try {
       await deleteMutation.mutateAsync(id);
@@ -120,14 +122,14 @@ async function createConversation(){
       ? readableError(messages.error, "加载消息失败")
       : null;
   const visibleError = actionError ?? queryError;
-  const generatingSelected = sendMutation.isPending && sendMutation.variables?.id === selectedId;
-  
+  const generatingSelected = stream.activeConversationId===selectedId;  
   return (
     <main className="grid h-svh grid-cols-1 overflow-hidden bg-background text-foreground md:grid-cols-[280px_minmax(0,1fr)]">
       <ConversationList
         conversations={conversations.data ?? []}
         selectedId={selectedId}
         onSelect={(id)=>{
+          if (stream.isStreaming) return;
           setActionError(null);
           setSelectedId(id);
         }}
@@ -139,7 +141,7 @@ async function createConversation(){
           deleteMutation.isPending ? deleteMutation.variables:null
         }
         deleteBlockedId={
-          sendMutation.isPending ? sendMutation.variables?.id ?? null:null
+          stream.activeConversationId
         }
       />
       <section className="grid min-h-0 grid-rows-[auto_auto_minmax(0,1fr)_auto]">
@@ -184,8 +186,11 @@ async function createConversation(){
         )}
         {selectedId !== null && (
           <Composer
-            disabled={sendMutation.isPending}
+            disabled={stream.isStreaming}
+            generating={generatingSelected}
+            stopping={stream.phase==="stopping"}
             onSend={sendMessage}
+            onStop={stream.stop}
           />
         )}  
       </section>  

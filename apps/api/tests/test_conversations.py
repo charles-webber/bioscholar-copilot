@@ -96,17 +96,16 @@ def test_deleting_same_conversation_twice_returns_404(
     assert second.status_code == 404
 
 
-def test_running_run_blocks_delete(client: TestClient, db: Session) -> None:
+def test_running_run_allows_delete(client: TestClient, db: Session) -> None:
     target = seed_conversation(db, run_status="running")
 
     response = client.delete(f"/api/conversations/{target.id}")
 
-    assert response.status_code == 409
-    assert response.json()["detail"] == "会话仍在生成回答，请稍后再删除"
+    assert response.status_code == 204
     db.expire_all()
-    assert db.get(Conversation, target.id) is not None
-    assert row_count(db, Message, target.id) == 1
-    assert row_count(db, AgentRun, target.id) == 1
+    assert db.get(Conversation, target.id) is None
+    assert row_count(db, Message, target.id) == 0
+    assert row_count(db, AgentRun, target.id) == 0
 
 
 def test_owner_dependency_still_hides_foreign_rows(

@@ -57,14 +57,21 @@ def list_conversations(
 
 @router.post("",response_model=ConversationOut,status_code=status.HTTP_201_CREATED)    
 def create_conversation(
-    payload:ConversationCreate,
-    db:Annotated[Session,Depends(get_db)],
-    owner_id:Annotated[UUID,Depends(get_current_user_id)]
+    db: Annotated[Session, Depends(get_db)],
+    owner_id: Annotated[UUID, Depends(get_current_user_id)],
+    payload: ConversationCreate | None = None,
 ):
-    conversation=Conversation(owner_id=owner_id,title=payload.title)
+    data = payload if payload is not None else ConversationCreate()
+
+    conversation = Conversation(
+        owner_id=owner_id,
+        title=data.title,
+    )
+
     db.add(conversation)
     db.commit()
     db.refresh(conversation)
+
     return conversation
 
 @router.patch("/{conversation_id}",response_model=ConversationOut)
@@ -109,18 +116,16 @@ def remove_conversation(
         owner_id,
         for_update=True
     )
-    running_run_id=db.scalar(
-        select(AgentRun.id).
-        where(
-            AgentRun.conversation_id==conversation.id,
-            AgentRun.status=="running",
-        ).
-        limit(1)
-    )
-    if running_run_id is not None:
-        raise HTTPException(status_code=409, detail="会话仍在生成回答，请稍后再删除")
 
-
-    db.delete(conversation)
-    db.commit()
+    try:
+        db.execute(
+            delete(Conversation).where(
+                Conversation.id==conversation_id,
+                Conversation.owner_id==owner_id
+            )
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -1,13 +1,19 @@
-from functools import lru_cache
 from collections.abc import Iterator
-from uuid import UUID
-from sqlalchemy.orm import Session
-from fastapi import Depends
+from functools import lru_cache
 from typing import Annotated
+from uuid import UUID
+
+from fastapi import Depends
+from sqlalchemy.orm import Session
 
 from app.agent.bioagent_adapter import BioAgentAdapter
 from app.agent.demo_bioagent import DemoAgentRuntime
+from app.agent.demo_streaming import DemoStreamingRuntime
+from app.agent.run_registry import RunRegistry
 from app.agent.runtime import AgentRuntime
+from app.agent.streaming_bioagent import StreamingBioAgent
+from app.agent.streaming_llm_client import NativeModelStreamer
+from app.agent.streaming_runtime import StreamingAgentRuntime
 from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.services.chat_service import ChatService
@@ -36,3 +42,22 @@ def get_agent_runtime()->AgentRuntime:
         return DemoAgentRuntime()
 
     return BioAgentAdapter()
+
+
+@lru_cache
+def get_run_registry() -> RunRegistry:
+    return RunRegistry()
+
+@lru_cache 
+def get_streaming_agent_runtime()->StreamingAgentRuntime:
+    settings=get_settings()
+    if settings.agent_backend=="demo":
+        return DemoStreamingRuntime()
+    return StreamingBioAgent(
+        NativeModelStreamer(
+            api_key=settings.biomedical_llm_api_key,
+            base_url=settings.biomedical_llm_base_url,
+            model=settings.biomedical_llm_model,
+            api_style=settings.biomedical_llm_api_style
+        )
+    )

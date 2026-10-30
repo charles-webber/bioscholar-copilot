@@ -1,5 +1,5 @@
 import { useState  ,type SubmitEvent} from "react";
-import { Send } from "lucide-react";
+import { Send,Square} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -11,16 +11,19 @@ import {
 
 type Props={
     disabled:boolean;
+    generating: boolean;
+    stopping: boolean;
     onSend:(message:string)=>Promise<void>;
+    onStop: () => Promise<void>;
 };
 
-export function Composer({disabled,onSend}:Props){
+export function Composer({ disabled, generating, stopping, onSend, onStop }: Props){
     const [message,setMessage] = useState("");
 
     async function sendCurrent(){
         
             const text = message.trim();
-            if(!text||disabled) return;
+            if(!text||disabled|| generating) return;
             try{
                 await onSend(text);
                 setMessage("");
@@ -51,10 +54,17 @@ export function Composer({disabled,onSend}:Props){
                         />
                         <PromptInputActions className="justify-between px-2 pb-1">
                             <span className="text-xs text-muted-foreground">{message.length}/4000</span>
+                            {generating ? (
+                                <Button type="button" size="icon" onClick={() => void onStop()} disabled={stopping}>
+                                    <Square aria-hidden="true" />
+                                    <span className="sr-only">{stopping ? "正在停止" : "停止生成"}</span>
+                            </Button>
+                        ) : (
                             <Button type="submit" size="icon" disabled={disabled || !message.trim()}>
                                 <Send aria-hidden="true"/>
                                 <span className="sr-only">发送</span>
                             </Button>
+                        )}
                         </PromptInputActions>
                     </PromptInput>
                 </form>

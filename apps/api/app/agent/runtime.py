@@ -2,6 +2,7 @@
 from dataclasses import dataclass
 #from typing import Any
 from typing import Protocol
+from typing import Sequence
 
 #区别
 @dataclass(frozen=True)
@@ -12,11 +13,8 @@ class AgentAnswer:
     model:str|None=None
     input_tokens:str|None=None
     output_tokens:str|None=None
-'''
-class AgentEvent:
-    type:str
-    data:dict[str,Any]
-'''
+
+
 class AgentRuntimeError(RuntimeError):
     def __init__(
         self,
@@ -33,4 +31,6 @@ class AgentRuntimeError(RuntimeError):
 
 class AgentRuntime(Protocol):
     #async def invoke(self,message:str)->str:...
-    def invoke(self,message:str)->AgentAnswer:...
+    def invoke(self,message:str)->AgentAnswer:
+        """根据一段完整输入返回一次非流式回答。"""
+        raise NotImplementedError

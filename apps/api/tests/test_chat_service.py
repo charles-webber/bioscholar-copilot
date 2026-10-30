@@ -61,8 +61,24 @@ def test_second_message_does_not_overwrite_generated_title(db: Session) -> None:
     conversation = make_conversation(db)
     service = ChatService(db)
 
-    service.start_run(conversation.id, OWNER_ID, "第一条问题")
-    service.start_run(conversation.id, OWNER_ID, "第二条完全不同的问题")
+    first_run_id = service.start_run(
+    conversation.id,
+    OWNER_ID,
+    "第一条问题",
+    )
+
+    service.complete_run(
+        first_run_id,
+        conversation.id,
+        "第一条问题的回答",
+        10,
+    )
+
+    service.start_run(
+        conversation.id,
+        OWNER_ID,
+        "第二条完全不同的问题",
+    )
 
     db.refresh(conversation)
     assert conversation.title == "第一条问题"

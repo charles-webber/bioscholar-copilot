@@ -48,18 +48,25 @@ export function MessageList({ messages,loading,generating }:Props){
                           key={message.id}
                           className={assistant ? "justify-start" : "justify-end"}
                         >
-                            <MessageContent
-                              id={message.id}
-                              markdown={assistant}
-                              className={assistant ? "max-w-[99%] text-foreground [&_strong]:text-foreground" : "max-w-[85%] bg-primary text-primary-foreground"}
-                            >
-                                {message.content}
-                            </MessageContent>
+                            <div className="max-w-[99%]">
+                                <MessageContent
+                                id={message.id}
+                                markdown={assistant}
+                                className={assistant ? "max-w-[99%] text-foreground [&_strong]:text-foreground" : "max-w-[85%] bg-primary text-primary-foreground"}
+                                >
+                                    {message.content}
+                                </MessageContent>
+                                {assistant && message.status!=="completed"&&(
+                                    <p className="mt-1 text-xs text-muted-foreground">
+                                        {message.status==="canceled"?"已停止":message.status==="failed"?"生成失败" : "生成中"}
+                                    </p>
+                                )}
+                            </div>
                         </MessageView>
                     )
                 })}
                 
-                {generating && (
+                {generating  && messages[messages.length - 1]?.content === "" && (
                     <div
                         className="flex items-center gap-2 text-sm text-muted-foreground"
                         role="status"
