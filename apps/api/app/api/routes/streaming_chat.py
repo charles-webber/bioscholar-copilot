@@ -106,11 +106,31 @@ async def stream_message(
 
         except AgentRuntimeError as error:
             latency = _latency_ms(started)
-            service.fail_run(run_id, error.code, partial_answer,latency)
+
+            if error.code in {"BIOMEDICAL_POLICY_BLOCKED", "BIOMEDICAL_TOPIC_NOT_FOUND"}:
+                reply = "\n".join(
+                    part for part in (error.message, error.next_action) if part
+                )
+
+                saved = service.complete_run(run_id, conversation_id, reply, latency)
+                if not saved:
+                    return
+
+                delta = AgentStreamEvent("text_delta", run_id, text=reply)
+                yield encode_sse(delta.type, delta.to_dict())
+
+                completed = AgentStreamEvent("run_completed", run_id, latency_ms=latency)
+                yield encode_sse(completed.type, completed.to_dict())
+                return
+
+            service.fail_run(run_id, error.code, latency, partial_answer)
             failed = AgentStreamEvent(
                 "run_error", run_id, message=error.message, code=error.code
             )
             yield encode_sse(failed.type, failed.to_dict())
+
+
+
         except Exception:
             logger.exception("streaming agent failed", extra={"run_id": str(run_id)})
             latency = _latency_ms(started)
